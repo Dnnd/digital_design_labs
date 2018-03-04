@@ -7,33 +7,56 @@ logic [3 :0] count;
 
 delay_counter counter(resetn, clk, delay, count);
 
-initial
-	begin
-		clk = 0;
-		delay = 3;
-		forever #10 clk = ~clk;
-	end
-initial
-	begin
-		resetn = 0;
-		repeat(4)@(negedge clk);
-		resetn = 1;
-	end
-	
-initial
-	begin
-		#160 resetn = 0;
-		#40 resetn = 1;
-	end
-	
-initial 
-	begin
-		forever
-			#5 $strobe("clk: %d, count: %d",clk, count);
-	end
+integer clk_count;
+integer prev_count;
 
 initial
+begin
+	clk = 0;
+	delay = 3;
+	clk_count = 0;
+	prev_count = 0;
+	forever #10 clk = ~clk;
+end
+
+
+initial
+begin
+	forever @(posedge clk) clk_count = clk_count + 1;
+end
+	
+	
+initial
+begin
+	resetn = 0;
+	repeat(4)@(negedge clk);
+	resetn = 1;
+end
+	
+initial
+begin
+	#256 resetn = 0;
+	#32 resetn = 1;
+end
+	
+initial 
+begin	
+	forever
+	begin
+		if(resetn)
 		begin
-			#1000 $finish;
+			if(prev_count != clk_count)
+			begin
+				$strobe("count: %d, clk_count: %d", count, clk_count); 
+				prev_count = clk_count;
+			end
 		end
+		#5;
+	end	
+end
+
+initial
+begin
+	#1024 $finish;
+end
 endmodule

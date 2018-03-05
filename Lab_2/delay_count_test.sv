@@ -34,7 +34,7 @@ end
 initial
 begin
 	#256 resetn = 0;
-	#32 resetn = 1;
+	#64 resetn = 1;
 end
 	
 initial 
@@ -47,6 +47,6 @@ end
 
 initial
 begin
-	#1024 $finish;
+	#2048 $finish;
 end
 endmodule

@@ -1,6 +1,8 @@
-.bak*
+*.bak*
 db/
 incremental_db/
 output_files/
 simulation/
-.rpt
+*.rpt
+*.qpf
+.doc

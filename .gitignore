@@ -6,3 +6,5 @@ simulation/
 *.rpt
 *.qpf
 .doc
+cmake-build-*/
+.idea/

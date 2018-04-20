@@ -1,0 +1,187 @@
+; --COPYRIGHT--,BSD_EX
+;  Copyright (c) 2012, Texas Instruments Incorporated
+;  All rights reserved.
+; 
+;  Redistribution and use in source and binary forms, with or without
+;  modification, are permitted provided that the following conditions
+;  are met:
+; 
+;  *  Redistributions of source code must retain the above copyright
+;     notice, this list of conditions and the following disclaimer.
+; 
+;  *  Redistributions in binary form must reproduce the above copyright
+;     notice, this list of conditions and the following disclaimer in the
+;     documentation and/or other materials provided with the distribution.
+; 
+;  *  Neither the name of Texas Instruments Incorporated nor the names of
+;     its contributors may be used to endorse or promote products derived
+;     from this software without specific prior written permission.
+; 
+;  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+;  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+;  THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+;  PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+;  CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+;  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+;  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+;  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+;  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+;  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+;  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+; 
+; ******************************************************************************
+;  
+;                        MSP430 CODE EXAMPLE DISCLAIMER
+; 
+;  MSP430 code examples are self-contained low-level programs that typically
+;  demonstrate a single peripheral function or device feature in a highly
+;  concise manner. For this the code may rely on the device's power-on default
+;  register values and settings such as the clock configuration and care must
+;  be taken when combining code from several examples to avoid potential side
+;  effects. Also see www.ti.com/grace for a GUI- and www.ti.com/msp430ware
+;  for an API functional library-approach to peripheral configuration.
+; 
+; --/COPYRIGHT--
+;******************************************************************************
+;   MSP430xG46x Demo - Timer_A, Toggle P5.1, TACCR0 Cont. Mode ISR, DCO SMCLK
+;
+;   Description: Toggle P5.1 using software and TA_0 ISR. Toggles every
+;   50000 SMCLK cycles. SMCLK provides clock source for TACLK.
+;   During the TA_0 ISR, P5.1 is toggled and 50000 clock cycles are added
+;   to TACCR0. TA_0 ISR is triggered every 50000 cycles. CPU is normally off
+;   and used only during TA_ISR.
+;   ACLK = 32.768kHz, MCLK = SMCLK = TACLK = default DCO
+;
+;                 MSP430xG461x
+;             -----------------
+;         /|\|              XIN|-
+;          | |                 |  32kHz
+;          --|RST          XOUT|-
+;            |                 |
+;            |             P5.1|-->LED
+;
+;   S. Karthikeyan/ K.Venkat
+;   Texas Instruments Inc.
+;   Dec 2006
+;   Built with IAR Embedded Workbench Version: 3.41A
+;******************************************************************************
+#include <msp430.h>
+;-------------------------------------------------------------------------------
+            RSEG    CSTACK                  ; Define stack segment
+;-------------------------------------------------------------------------------
+            RSEG    CODE                    ; Assemble to Flash memory
+;-----------------------------------------------------------------------------
+; ******************* 1. ????????????? ??????? ? LCD-??????? ******************
+
+RESET 		mov.w #SFE(CSTACK), SP 		; Initialize stackpointer
+		mov.b #LCDON + LCD4MUX + LCDFREQ_128, &LCDACTL 	; 4mux LCD, ACLK/128
+		mov.b #0x0F, &LCDAPCTL0 	; Segments 0-13
+		mov.b #0x1C, &P5SEL 		; set COM pins for LCD
+ClearLCD 	mov.w #20, R15 			; 15 LCD memory bytes to clear
+Clear1 		mov.b #0, LCDM1(R15) 		; Write zeros in LCD RAM locations
+						; to clear display
+		dec R15 			; All LCD mem clear?
+		jc Clear1 			; More LCD mem to clear go, use JC
+StopWDT 	mov.w #WDTPW+WDTHOLD, &WDTCTL 	; Stop WDT
+SetupFLL 	bis.b #XCAP14PF, &FLL_CTL0 	; Configure load caps
+OFIFGcheck 	bic.b #OFIFG, &IFG1 		; Clear OFIFG
+		mov.w #047FFh, R15 		; Wait for OFIFG to set again if
+OFIFGwait 	dec.w R15 			; not stable yet
+		jnz OFIFGwait
+		bit.b #OFIFG, &IFG1 		; Has it set again?
+		jnz OFIFGcheck 			; If so, wait some more
+SetupP5 	bis.b #002h, &P5DIR 		; P5.1 output
+SetupC0 	mov.w #CCIE, &TACCTL0 		; TACCR0 interrupt enabled
+
+; CCIE and CCIFG (bits 4 and 0) are
+;more interrupts associated
+; with the CCR's.
+		mov.w #50000, &TACCR0 		;
+SetupTA 	mov.w #TASSEL_2+MC_2, &TACTL 	; SMCLK, continuous mode
+
+; ****************** 2. ????????? ????????? ???????? **************************
+Mainloop 	mov.w #01024d, R7 		; number
+		mov.w #10d, R8 			; skip
+                MOV #00h, R13
+		bis.w #CPUOFF+GIE, SR 		; CPU off, interrupts enabled
+		nop 				; Required for debugger
+                
+                ;bis.w #GIE, SR 		; interrupts enabled
+                ;jmp $
+                ;nop
+
+; ****************** 3. ?????????? ?????????? *********************************
+
+TA0_ISR; DEC NUMBER
+;------------------------------------------------------------------------------
+		add.w #50000, &TACCR0 		; Add Offset to TACCR0
+		dec.w R8
+		jz run
+		reti
+run: 		
+		;dec.w R7 			; number
+		;mov.w R7, R4
+		call #ITOA 			; int to string
+                mov.w #10d, R8
+reti
+
+; * 4. ??????? ITOA, ??????????? ????? ? ?????? ? ????????? ??? ?? LCD-??????? *
+ITOA:
+	;	MOV R4, R12
+		MOV.W #00d, R6
+                MOV R13, R14 ; R14 = R13; R14 -> LCDM3, R14 >> 4 -> LCDM3;  
+lp 		
+                MOV R14, R15
+                AND #1111b, R15               
+                MOV.B LCD_Tab(R15), LCDM3(R6)
+                
+                RRA R14
+                RRA R14
+                RRA R14
+                RRA R14
+		INC R6
+		CMP #04d, R6
+		JL lp
+                
+                
+                INC R13
+                CMP #0FFFFh, R13
+                JNZ ext
+                AND #0h, R13
+ext:		RET                    
+   
+;       Digits code for 4-mux mode
+a               EQU 080h        ; .
+b               EQU 040h        ; left bottom
+c               EQU 020h        ; middle      
+d               EQU 001h        ; top
+e               EQU 002h        ; right top
+f               EQU 008h        ; bottom
+g               EQU 004h        ; right bottom
+h               EQU 010h        ; left top
+
+LCD_Tab     DB      b+d+e+f+g+h                 ; Displays '0'
+            DB      e+g                         ; Displays '1'
+            DB      d+e+c+b+f                   ; Displays '2'
+            DB      d+e+c+g+f                   ; Displays '3'
+            DB      h+c+e+g                     ; Displays '4'
+            DB      d+h+c+g+f                   ; Displays '5'
+            DB      d+h+c+b+f+g                 ; Displays '6'
+            DB      d+e+g                       ; Displays '7'
+            DB      b+c+d+e+f+g+h               ; Displays '8'
+            DB      c+d+e+f+g+h                 ; Displays '9'
+            DB c+b+d+e+g+h ; Displays 'A'
+            DB h+c+b+f+g ; Displays 'b'
+            DB b+d+f+h ; Displays 'C'
+            DB b+c+e+f+g ; Displays 'd'
+            DB b+c+d+f+h ; Displays 'E'
+            DB b+c+d+h ; Displays 'F'
+                                            
+;------------------------------------------------------------------------------
+            COMMON  INTVEC                  ; Interrupt Vectors
+;------------------------------------------------------------------------------
+            ORG     RESET_VECTOR            ; MSP430 RESET Vector
+            DW      RESET                   ;
+            ORG     TIMERA0_VECTOR          ; Timer_A0 Vector
+            DW      TA0_ISR                 ;
+            END

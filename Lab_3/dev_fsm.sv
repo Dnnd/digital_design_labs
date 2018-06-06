@@ -44,6 +44,8 @@ module dev_fsm
 				else 
 					next_state = ST_RCV_1;
 			end					
+			else
+				next_state = ST_IDLE;
 		ST_RCV_1:			
 			next_state = ST_RCV_2;
 		ST_RCV_2:

@@ -48,12 +48,13 @@ module dev_fsm_tb();
 		@(posedge clk);
 	
 		write_transaction((1<<b_op_1)|(1<<b_op_2)|(1<<b_addop), $random, $random,res);
-				
-		read_result(res);		
-		
-		write_transaction((1<<b_op_1)|(1<<b_addres),$random,0,res);
-	
+					
 		read_result(res);
+	
+		write_transaction((1<<b_op_1)|(1<<b_addres),$random,0,res);
+		read_result(res);
+		read_result(res);
+
 		//wait couple clock cycles
 		repeat (2) @(posedge clk);
 		//stop simulation
@@ -86,23 +87,22 @@ module dev_fsm_tb();
 			//wait while device is busy
 			while (busy) @(posedge clk);
 			//set chip select and write command to DUT
-			cs=1;
+			cs=1;						
 			din=cmd;
+			
+			
 			//clear chip select
 			@(posedge clk);
 			cs=0;
 			//write op_1 if required and wait for one clock cycle
-			if (cmd[b_op_1]) 
-			begin 
-				din=op_1;
-				@(posedge clk);
-			end
+			
+			din=op_1;
+			@(posedge clk);
+			
 			//write op_2 if required and wait for one clock cycle
-			if (cmd[b_op_2]) 
-			begin 
-				din=op_2;
-				@(posedge clk);
-			end			
+			din=op_2;
+			@(posedge clk);	
+			
 		end
 	endtask
 	
